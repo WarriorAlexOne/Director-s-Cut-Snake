@@ -25,9 +25,10 @@ typedef struct {
     bool isAlive;
 
     int size;
+    int segmentValue;
 
-    int* segmentsX;
-    int* segmentsY;
+    int posX;
+    int posY;
 
     int lastX;
     int lastY;
@@ -54,7 +55,7 @@ Map CreateMap (int width, int height) {
 
     newMap.map = (byte**)SDL_malloc(sizeof(byte*) * width);
     for (int i = 0; i < width; i++) {
-        newMap.map[i] = (byte*)SDL_malloc(sizeof(byte) * height);
+        newMap.map[i] = (byte*)SDL_calloc(height, sizeof(byte));
     }
 
     return newMap;
@@ -106,24 +107,35 @@ void MoveSnake (Player* player) {
     
 }
 
-void UpdateSnake (Player* player) {
-    if (player->up && player->segmentsY[0] > 0) {
-        player->segmentsY[0] -= 1*zoom;
+void UpdateSnake (Player* player, Map* map) {
+    if (player->up) {
+        map->map[player->posX][player->posY-1] = player->segmentValue++;
+        player->posY--;
+    }
+    else if (player->down) {
+        map->map[player->posX][player->posY+1] = player->segmentValue++;
+        player->posY++;
+    }
+
+    if (player->right) {
+        map->map[player->posX+1][player->posY] = player->segmentValue++;
+        player->posX++;
+    }
+    else if (player->left) {
+        map->map[player->posX-1][player->posY] = player->segmentValue++;
+        player->posX--;
     }
 }
 
 void DrawSnake (Player* player) {
-    for (int i = 0; i < player->size; i++) {
-        DrawRectangle(player->segmentsX[i], player->segmentsY[i], zoom, zoom, WHITE);
-    }
+    // for (int i = 0; i < player->size; i++) {
+    //     DrawRectangle(player->segmentsX[i], player->segmentsY[i], zoom, zoom, WHITE);
+    // }
 }
 
 Player InitSnake () {
     Player newPlayer = {0};
     newPlayer.size = 1;
-
-    newPlayer.segmentsX = SDL_malloc(104857600 * sizeof(int));
-    newPlayer.segmentsY = SDL_malloc(104857600 * sizeof(int));
 
     return newPlayer;
 }
@@ -134,24 +146,23 @@ int main () {
 
     Map map = CreateMap(32, 32);
     Player player = InitSnake();
-    player.segmentsX[0] = 12*zoom;
-    player.segmentsY[0] = 12*zoom;
+    player.posX = 10;
+    player.posY = 10;
 
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(PURPLE);
 
         Controls(&player);
-        UpdateSnake(&player);
+        UpdateSnake(&player, &map);
 
         for (int y = 0; y < map.h; y++) {
             for (int x = 0; x < map.w; x++) {
-                map.map[x][y] = 0;
-                if (y > map.h/1.25) {
-                    map.map[x][y] = 1;
-                }
-                DrawRectangle(x*zoom, y*zoom, zoom, zoom, map.map[x][y] == 0 ? BLUE : GREEN);
+                DrawRectangle(x*zoom, y*zoom, zoom, zoom, map.map[x][y] == 0 ? DARKBLUE : DARKGREEN);
                 DrawRectangleLines(x*zoom, y*zoom, zoom, zoom, BLACK);
+                char num[32];
+                SDL_snprintf(num, 32, "%i", map.map[x][y]);
+                DrawText(num, x*zoom, y*zoom, 10, LIGHTGRAY);
             }
         }
 
