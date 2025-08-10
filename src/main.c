@@ -1,18 +1,15 @@
 #include <SDL3/SDL.h>
 #include <Raylib/raylib.h>
 #include <stdio.h>
+#include "WBE_Defines.h"
+#include "WBE_Clock.h"
+#include "WBE_Key.h"
 #define SNAKE "Director's Cut: Snake"
-
-#ifndef byte
-#define byte char
-#endif
 
 // Note, to account for the snake's segments values reaching 0, when
 // it reaches 0, use a for loop that goes through each segment, and
 // add (segment value - integer limit) to each individual segment, to
 // reset the values of the snake when needed
-
-int zoom = 16;
 
 typedef struct {
     byte** map;
@@ -39,6 +36,19 @@ typedef struct {
     bool right;
 } Player;
 
+WBE_Clock* clock;
+
+SDL_Window* window;
+SDL_Renderer* renderer;
+
+SDL_Event event;
+WBE_KeyCheck* keyChecker;
+
+Player player;
+Map map;
+
+int zoom = 16;
+
 Map CreateMap (int width, int height) {
     Map newMap = {0};
     if (width < 0 || height < 0) {
@@ -62,7 +72,7 @@ Map CreateMap (int width, int height) {
 }
 
 void Controls (Player* player) {
-    if (IsKeyDown(KEY_W)) {
+    if (WBE_IsKeyDown(keyChecker, SDL_SCANCODE_W)) {
         player->up = true;
         player->left = false;
         player->down = false;
@@ -72,7 +82,7 @@ void Controls (Player* player) {
         player->up = false;
     }
 
-    if (IsKeyDown(KEY_A)) {
+    if (WBE_IsKeyDown(keyChecker, SDL_SCANCODE_A)) {
         player->up = false;
         player->left = true;
         player->down = false;
@@ -82,7 +92,7 @@ void Controls (Player* player) {
         player->left = false;
     }
 
-    if (IsKeyDown(KEY_S)) {
+    if (WBE_IsKeyDown(keyChecker, SDL_SCANCODE_S)) {
         player->up = false;
         player->left = false;
         player->down = true;
@@ -92,7 +102,7 @@ void Controls (Player* player) {
         player->down = false;
     }
 
-    if (IsKeyDown(KEY_D)) {
+    if (WBE_IsKeyDown(keyChecker, SDL_SCANCODE_D)) {
         player->up = false;
         player->left = false;
         player->down = false;
@@ -134,70 +144,102 @@ void UpdateSnake (Player* player, Map* map) {
     if (player->up) {
         map->map[player->posX][player->posY-1] = player->segmentValue++;
         player->posY--;
-        MoveTail(player, map);
     }
     else if (player->down) {
         map->map[player->posX][player->posY+1] = player->segmentValue++;
         player->posY++;
-        MoveTail(player, map);
     }
 
     if (player->right) {
         map->map[player->posX+1][player->posY] = player->segmentValue++;
         player->posX++;
-        MoveTail(player, map);
     }
     else if (player->left) {
         map->map[player->posX-1][player->posY] = player->segmentValue++;
         player->posX--;
-        MoveTail(player, map);
     }
-}
-
-void DrawSnake (Player* player) {
-    // for (int i = 0; i < player->size; i++) {
-    //     DrawRectangle(player->segmentsX[i], player->segmentsY[i], zoom, zoom, WHITE);
-    // }
+    MoveTail(player, map);
 }
 
 Player InitSnake () {
     Player newPlayer = {0};
     newPlayer.size = 1;
+    newPlayer.segmentValue = 1;
 
     return newPlayer;
 }
 
-int main () {
-    InitWindow(800, 600, SNAKE);
-    SetTargetFPS(10);
+char fpsText[32];
 
-    Map map = CreateMap(32, 32);
-    Player player = InitSnake();
+void SecUpdate () {
+    SDL_snprintf(fpsText, 32, "%i", WBE_GetFPS(clock));
+}
+
+void FrameUpdate () {
+    Controls(&player);
+    UpdateSnake(&player, &map);
+}
+
+int main () {
+    SDL_Init(SDL_INIT_VIDEO);
+
+    clock = WBE_CreateClock();
+    WBE_AddFrameFunction(clock, FrameUpdate);
+    WBE_AddSecFunction(clock, SecUpdate);
+
+    SDL_CreateWindowAndRenderer(SNAKE, 800, 600, SDL_WINDOW_RESIZABLE, &window, &renderer);
+
+    keyChecker = WBE_CreateKeyChecker();
+
+    map = CreateMap(32, 32);
+    player = InitSnake();
     player.posX = 10;
     player.posY = 10;
     player.lastX = 10;
-    player.lastY = 10;
+    player.lastY = 9;
 
-    while (!WindowShouldClose()) {
-        BeginDrawing();
-        ClearBackground(PURPLE);
+    bool quit = false;
 
-        Controls(&player);
-        UpdateSnake(&player, &map);
+    while (!quit) {
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_QUIT) {
+                quit = true;
+            }
+            WBE_UpdateKeyCheck(keyChecker, event);
+        }
 
+        WBE_UpdateClock(clock);
+
+        SDL_SetRenderDrawColor(renderer, 25, 51, 153, 255);
+        SDL_RenderClear(renderer);
+
+        char text[32];
         for (int y = 0; y < map.h; y++) {
             for (int x = 0; x < map.w; x++) {
-                DrawRectangle(x*zoom, y*zoom, zoom, zoom, map.map[x][y] == 0 ? DARKBLUE : DARKGREEN);
-                DrawRectangleLines(x*zoom, y*zoom, zoom, zoom, BLACK);
-                char num[32];
-                SDL_snprintf(num, 32, "%i", map.map[x][y]);
-                DrawText(num, x*zoom, y*zoom, 10, LIGHTGRAY);
+                if (map.map[x][y] == 0) {
+                    SDL_SetRenderDrawColor(renderer, 10, 127, 255, 255);
+                }
+                else {
+                    SDL_SetRenderDrawColor(renderer, 10, 255, 10, 255);
+                }
+                SDL_RenderFillRect(renderer, &(SDL_FRect){x*zoom, y*zoom, zoom, zoom});
+
+                SDL_SetRenderDrawColor(renderer, 255, 10, 10, 255);
+                SDL_RenderFillRect(renderer, &(SDL_FRect){player.lastX*zoom, player.lastY*zoom, zoom, zoom});
+
+                SDL_SetRenderDrawColor(renderer, 0, 0, 00, 255);
+                SDL_RenderRect(renderer, &(SDL_FRect){x*zoom, y*zoom, zoom, zoom});
+
+                SDL_snprintf(text, 32, "%i", map.map[x][y]);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                SDL_RenderDebugText(renderer, x*zoom, y*zoom, text);
             }
         }
 
-        DrawSnake(&player);
+        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+        SDL_RenderDebugText(renderer, 10, 10, fpsText);
 
-        EndDrawing();
+        SDL_RenderPresent(renderer);
     }
 
     return 0;
