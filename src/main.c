@@ -103,27 +103,54 @@ void Controls (Player* player) {
     }
 }
 
-void MoveSnake (Player* player) {
-    
+void MoveTail (Player* player, Map* map) {
+    if (
+        map->map[player->lastX][player->lastY-1] == map->map[player->lastX][player->lastY]-1
+    ) {
+        map->map[player->lastX][player->lastY] = 0;
+        player->lastY--;
+    }
+    if (
+        map->map[player->lastX-1][player->lastY] == map->map[player->lastX][player->lastY]-1
+    ) {
+        map->map[player->lastX][player->lastY] = 0;
+        player->lastX--;
+    }
+    if (
+        map->map[player->lastX][player->lastY+1] == map->map[player->lastX][player->lastY]-1
+    ) {
+        map->map[player->lastX][player->lastY] = 0;
+        player->lastY++;
+    }
+    if (
+        map->map[player->lastX+1][player->lastY] == map->map[player->lastX][player->lastY]-1
+    ) {
+        map->map[player->lastX][player->lastY] = 0;
+        player->lastX++;
+    }
 }
 
 void UpdateSnake (Player* player, Map* map) {
     if (player->up) {
         map->map[player->posX][player->posY-1] = player->segmentValue++;
         player->posY--;
+        MoveTail(player, map);
     }
     else if (player->down) {
         map->map[player->posX][player->posY+1] = player->segmentValue++;
         player->posY++;
+        MoveTail(player, map);
     }
 
     if (player->right) {
         map->map[player->posX+1][player->posY] = player->segmentValue++;
         player->posX++;
+        MoveTail(player, map);
     }
     else if (player->left) {
         map->map[player->posX-1][player->posY] = player->segmentValue++;
         player->posX--;
+        MoveTail(player, map);
     }
 }
 
@@ -148,6 +175,8 @@ int main () {
     Player player = InitSnake();
     player.posX = 10;
     player.posY = 10;
+    player.lastX = 10;
+    player.lastY = 10;
 
     while (!WindowShouldClose()) {
         BeginDrawing();
